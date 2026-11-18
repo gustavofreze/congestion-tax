@@ -1,0 +1,11 @@
+# Tests assert by failing loudly, so the panic family the restriction lints forbid in production code stays allowed in
+# the test target.
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-tests = true
+
+# Mirrors the complexity bounds of the PHP and Go services (cyclomatic complexity 10, nesting level 5, functions of at
+# most 80 lines).
+cognitive-complexity-threshold = 10
+excessive-nesting-threshold = 5
+too-many-lines-threshold = 80

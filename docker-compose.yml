@@ -1,0 +1,72 @@
+name: congestion-tax
+
+services:
+  congestion-tax:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    cpus: 1.0
+    restart: unless-stopped
+    hostname: congestion-tax
+    mem_limit: 256m
+    container_name: congestion-tax
+    stop_grace_period: 30s
+    env_file:
+      - path: .env.local
+        required: true
+    ports:
+      - "8380:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/liveness"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      congestion-tax-migrate:
+        condition: service_completed_successfully
+
+  congestion-tax-adm:
+    image: postgres:18.7
+    cpus: 1.0
+    restart: unless-stopped
+    hostname: congestion-tax-adm
+    mem_limit: 512m
+    container_name: congestion-tax-adm
+    environment:
+      POSTGRES_DB: "${DATABASE_NAME:-}"
+      POSTGRES_USER: "${FLYWAY_USER:-}"
+      POSTGRES_PASSWORD: "${FLYWAY_PASSWORD:-}"
+      POSTGRES_INITDB_ARGS: "${DATABASE_INITDB_ARGS:-}"
+      CONGESTION_TAX_APP_USER: "${DATABASE_USER:-}"
+      CONGESTION_TAX_APP_PASSWORD: "${DATABASE_PASSWORD:-}"
+    ports:
+      - "5480:5432"
+    volumes:
+      - congestion-tax-adm-data:/var/lib/postgresql
+      - ./docker/postgres/initdb.d:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  congestion-tax-migrate:
+    image: flyway/flyway:13.12-alpine
+    cpus: 0.5
+    hostname: congestion-tax-migrate
+    mem_limit: 256m
+    container_name: congestion-tax-migrate
+    env_file:
+      - path: .env.local
+        required: true
+    command: ["-connectRetries=60", "migrate"]
+    volumes:
+      - ./database/migrations:/flyway/sql:ro
+    depends_on:
+      congestion-tax-adm:
+        condition: service_healthy
+
+volumes:
+  congestion-tax-adm-data:

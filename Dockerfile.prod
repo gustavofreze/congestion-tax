@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+
+FROM gustavofreze/rust:1.100-builder AS builder
+
+COPY --chown=app:app Cargo.toml Cargo.lock rust-toolchain.toml ./
+
+RUN cargo fetch --locked
+
+COPY --chown=app:app ./ ./
+
+RUN cargo build --release --locked --offline --bin congestion-tax
+
+FROM gustavofreze/rust:1.100-runtime
+
+LABEL org.opencontainers.image.title="gustavofreze/congestion-tax" \
+      org.opencontainers.image.authors="Gustavo Freze"
+
+COPY --from=builder --chown=app:app /app/target/release/congestion-tax /app/congestion-tax
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+    CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/liveness"]
+
+CMD ["/app/congestion-tax"]
