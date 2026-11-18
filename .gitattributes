@@ -19,3 +19,8 @@ docker-compose* text eol=lf
 Cargo.lock      -diff linguist-generated
 *.sql           linguist-detectable=false
 openapi.yaml    linguist-documentation
+
+# Tooling around the service (skip GitHub stats, so they count only Rust)
+.claude/**      linguist-vendored
+Makefile        linguist-detectable=false
+*.sh            linguist-detectable=false
