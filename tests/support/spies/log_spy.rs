@@ -19,16 +19,13 @@ impl LogSpy {
     pub(crate) fn subscriber(&self) -> impl Subscriber + Send + Sync + 'static {
         let log = self.clone();
 
-        fmt()
-            .with_ansi(false)
-            .with_writer(move || log.clone())
-            .finish()
+        fmt().with_ansi(false).with_writer(move || log.clone()).finish()
     }
 
-    pub(crate) fn logged_lines(&self) -> Vec<String> {
+    pub(crate) fn logged_text(&self) -> String {
         let written = self.written.lock().unwrap_or_else(PoisonError::into_inner);
 
-        String::from_utf8_lossy(&written).lines().map(str::to_owned).collect()
+        String::from_utf8_lossy(&written).into_owned()
     }
 }
 

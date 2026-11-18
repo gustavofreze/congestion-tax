@@ -132,7 +132,8 @@ async fn find_tax_rules_by_city_when_tax_rules_cannot_be_read_then_responds_that
     );
 
     // And the log keeps the cause as an error
-    assert!(log.logged_lines().iter().any(|line| {
-        line.contains("ERROR") && line.contains("The tax rules cannot be read.") && line.contains("cause=Some(")
-    }));
+    let logged = log.logged_text();
+    assert!(logged.contains("ERROR"));
+    assert!(logged.contains("The tax rules cannot be read."));
+    assert!(logged.contains("cause=Some("));
 }

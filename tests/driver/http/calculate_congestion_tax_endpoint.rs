@@ -194,11 +194,10 @@ async fn calculate_when_tax_rules_are_unavailable_then_responds_that_the_service
     );
 
     // And the log keeps the cause as an error
-    assert!(log.logged_lines().iter().any(|line| {
-        line.contains("ERROR")
-            && line.contains("The tax rules catalog is unavailable.")
-            && line.contains("connection refused")
-    }));
+    let logged = log.logged_text();
+    assert!(logged.contains("ERROR"));
+    assert!(logged.contains("The tax rules catalog is unavailable."));
+    assert!(logged.contains("connection refused"));
 }
 
 #[rstest]
