@@ -9,10 +9,12 @@ use congestion_tax::routes::router;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
+use tracing::instrument::WithSubscriber;
 
 use crate::support::fixtures::database_fixtures::{migrated_database, unreachable_database};
 use crate::support::spies::calculating_congestion_tax_spy::CalculatingCongestionTaxSpy;
 use crate::support::spies::dependency_probe_spy::DependencyProbeSpy;
+use crate::support::spies::log_spy::LogSpy;
 
 async fn get(path: &str, finding: PostgresTaxRulesFinding) -> (StatusCode, Value) {
     let response = router(
@@ -112,8 +114,13 @@ async fn find_tax_rules_by_city_when_tax_rules_cannot_be_read_then_responds_that
     // Given a port no database listens on
     let finding = PostgresTaxRulesFinding::new(unreachable_database());
 
+    // And a log listening to the service
+    let log = LogSpy::listening();
+
     // When the tax rules of Gothenburg are asked
-    let (status, body) = get("/tax-rules/gothenburg", finding).await;
+    let (status, body) = get("/tax-rules/gothenburg", finding)
+        .with_subscriber(log.subscriber())
+        .await;
 
     // Then the response is service unavailable
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
@@ -123,4 +130,9 @@ async fn find_tax_rules_by_city_when_tax_rules_cannot_be_read_then_responds_that
         body,
         json!({"code": "SERVICE_UNAVAILABLE", "message": "The service is not ready."})
     );
+
+    // And the log keeps the cause as an error
+    assert!(log.logged_lines().iter().any(|line| {
+        line.contains("ERROR") && line.contains("The tax rules cannot be read.") && line.contains("cause=Some(")
+    }));
 }
