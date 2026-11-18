@@ -1,0 +1,4 @@
+exclude_globs = ["src/main.rs", "src/app_settings.rs", "src/database_settings.rs", "src/environment_variable.rs"]
+# The suite reaches PostgreSQL, so its run time swings with the load on the machine, and a timeout derived from a fast
+# baseline reports a caught mutant as a timeout. Two minutes bounds a hang without tripping on a slow run.
+minimum_test_timeout = 120

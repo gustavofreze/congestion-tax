@@ -1,0 +1,8 @@
+[user]
+	name = Gustavo Freze
+	email = gustavo.freze@outlook.com
+[pull]
+	rebase = false
+[safe]
+	directory = /app
+	directory = /app

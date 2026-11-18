@@ -1,0 +1,541 @@
+{
+  "info": {
+    "_postman_id": "f6221396-133e-5276-b8fa-da581deb2c6d",
+    "name": "Congestion Tax",
+    "description": "Every operation the service publishes, in the order the collection runner needs them.\n\nThe folders mirror the documentation pages: `Health` renders `docs/HEALTH.md`, `Use cases` renders `docs/USE_CASES.md`, and `Queries` renders `docs/QUERIES.md`. Each request keeps the name of its `operationId` summary in `openapi.yaml`, so a request and its contract are found under the same words.\n\nRunning the whole collection top to bottom works on a service just started by `make start`, because it ships with the Gothenburg tax rules of 2013 and no request changes them.\n\n`baseUrl` is a collection variable, so the collection runs with no environment imported. Import `congestion-tax-local.postman_environment.json` to point it somewhere else.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "The operational probes, rendered in `docs/HEALTH.md`. They are contracts for the platform, not domain operations, which is why they sit apart from `Use cases`.",
+      "item": [
+        {
+          "name": "Liveness check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reports the process as up', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/liveness",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "liveness"
+              ]
+            },
+            "description": "Reports whether the process is running. It touches no dependency, so it answers `200` for as long as the process answers at all."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/liveness",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "liveness"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"status\": \"UP\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Readiness check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reports every dependency it checked', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('status');",
+                  "    pm.expect(body.checks).to.be.an('array').that.is.not.empty;",
+                  "});",
+                  "",
+                  "pm.test('Is ready to receive traffic', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/readiness",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "readiness"
+              ]
+            },
+            "description": "Reports whether the service can serve traffic, which means the database answered. It returns `503` with the same diagnostic body when it did not, so the first assertion covers both outcomes and the second is the one that fails a service that is not ready."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/readiness",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "readiness"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"checks\": [\n        {\n            \"status\": \"UP\",\n            \"critical\": true,\n            \"component\": \"database\",\n            \"duration_in_milliseconds\": 4.59\n        }\n    ],\n    \"status\": \"HEALTHY\"\n}"
+            },
+            {
+              "name": "503 Service Unavailable",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/readiness",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "readiness"
+                  ]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"checks\": [\n        {\n            \"detail\": \"pool timed out while waiting for an open connection\",\n            \"status\": \"DOWN\",\n            \"critical\": true,\n            \"component\": \"database\",\n            \"duration_in_milliseconds\": 3001.37\n        }\n    ],\n    \"status\": \"UNAVAILABLE\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Use cases",
+      "description": "The domain operations, rendered in `docs/USE_CASES.md`.",
+      "item": [
+        {
+          "name": "Congestion tax calculating",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Calculates the tax of the example of the challenge', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.amount).to.eql(89);",
+                  "    pm.expect(body.currency).to.eql('SEK');",
+                  "    pm.expect(body.days).to.have.lengthOf(6);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"city\": \"gothenburg\",\n    \"vehicle\": \"CAR\",\n    \"passages\": [\n        \"2013-01-14 21:00:00\",\n        \"2013-01-15 21:00:00\",\n        \"2013-02-07 06:23:27\",\n        \"2013-02-07 15:27:00\",\n        \"2013-02-08 06:27:00\",\n        \"2013-02-08 06:20:27\",\n        \"2013-02-08 14:35:00\",\n        \"2013-02-08 15:29:00\",\n        \"2013-02-08 15:47:00\",\n        \"2013-02-08 16:01:00\",\n        \"2013-02-08 16:48:00\",\n        \"2013-02-08 17:49:00\",\n        \"2013-02-08 18:29:00\",\n        \"2013-02-08 18:35:00\",\n        \"2013-03-26 14:25:00\",\n        \"2013-03-28 14:07:27\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/congestion-taxes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "congestion-taxes"
+              ]
+            },
+            "description": "Calculates the tax a car owes for the passages in the example of the challenge, out of chronological order. The total is 89 kronor, and each of the six days carries its own tax."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"city\": \"gothenburg\",\n    \"vehicle\": \"CAR\",\n    \"passages\": [\n        \"2013-01-14 21:00:00\",\n        \"2013-01-15 21:00:00\",\n        \"2013-02-07 06:23:27\",\n        \"2013-02-07 15:27:00\",\n        \"2013-02-08 06:27:00\",\n        \"2013-02-08 06:20:27\",\n        \"2013-02-08 14:35:00\",\n        \"2013-02-08 15:29:00\",\n        \"2013-02-08 15:47:00\",\n        \"2013-02-08 16:01:00\",\n        \"2013-02-08 16:48:00\",\n        \"2013-02-08 17:49:00\",\n        \"2013-02-08 18:29:00\",\n        \"2013-02-08 18:35:00\",\n        \"2013-03-26 14:25:00\",\n        \"2013-03-28 14:07:27\"\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/congestion-taxes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "congestion-taxes"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"days\": [\n        {\n            \"date\": \"2013-01-14\",\n            \"amount\": 0\n        },\n        {\n            \"date\": \"2013-01-15\",\n            \"amount\": 0\n        },\n        {\n            \"date\": \"2013-02-07\",\n            \"amount\": 21\n        },\n        {\n            \"date\": \"2013-02-08\",\n            \"amount\": 60\n        },\n        {\n            \"date\": \"2013-03-26\",\n            \"amount\": 8\n        },\n        {\n            \"date\": \"2013-03-28\",\n            \"amount\": 0\n        }\n    ],\n    \"amount\": 89,\n    \"currency\": \"SEK\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"city\": \"gothenburg\",\n    \"vehicle\": \"CAR\",\n    \"passages\": [\n        \"2013-01-14 21:00:00\",\n        \"2013-01-15 21:00:00\",\n        \"2013-02-07 06:23:27\",\n        \"2013-02-07 15:27:00\",\n        \"2013-02-08 06:27:00\",\n        \"2013-02-08 06:20:27\",\n        \"2013-02-08 14:35:00\",\n        \"2013-02-08 15:29:00\",\n        \"2013-02-08 15:47:00\",\n        \"2013-02-08 16:01:00\",\n        \"2013-02-08 16:48:00\",\n        \"2013-02-08 17:49:00\",\n        \"2013-02-08 18:29:00\",\n        \"2013-02-08 18:35:00\",\n        \"2013-03-26 14:25:00\",\n        \"2013-03-28 14:07:27\"\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/congestion-taxes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "congestion-taxes"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"code\": \"TAX_RULES_NOT_FOUND\",\n    \"message\": \"No tax rules found for the city.\"\n}"
+            },
+            {
+              "name": "422 Unprocessable Entity",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"city\": \"gothenburg\",\n    \"vehicle\": \"CAR\",\n    \"passages\": [\n        \"2013-01-14 21:00:00\",\n        \"2013-01-15 21:00:00\",\n        \"2013-02-07 06:23:27\",\n        \"2013-02-07 15:27:00\",\n        \"2013-02-08 06:27:00\",\n        \"2013-02-08 06:20:27\",\n        \"2013-02-08 14:35:00\",\n        \"2013-02-08 15:29:00\",\n        \"2013-02-08 15:47:00\",\n        \"2013-02-08 16:01:00\",\n        \"2013-02-08 16:48:00\",\n        \"2013-02-08 17:49:00\",\n        \"2013-02-08 18:29:00\",\n        \"2013-02-08 18:35:00\",\n        \"2013-03-26 14:25:00\",\n        \"2013-03-28 14:07:27\"\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/congestion-taxes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "congestion-taxes"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"code\": \"UNSUPPORTED_VEHICLE_TYPE\",\n    \"message\": \"Vehicle type <TRUCK> is not supported.\"\n}"
+            },
+            {
+              "name": "503 Service Unavailable",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"city\": \"gothenburg\",\n    \"vehicle\": \"CAR\",\n    \"passages\": [\n        \"2013-01-14 21:00:00\",\n        \"2013-01-15 21:00:00\",\n        \"2013-02-07 06:23:27\",\n        \"2013-02-07 15:27:00\",\n        \"2013-02-08 06:27:00\",\n        \"2013-02-08 06:20:27\",\n        \"2013-02-08 14:35:00\",\n        \"2013-02-08 15:29:00\",\n        \"2013-02-08 15:47:00\",\n        \"2013-02-08 16:01:00\",\n        \"2013-02-08 16:48:00\",\n        \"2013-02-08 17:49:00\",\n        \"2013-02-08 18:29:00\",\n        \"2013-02-08 18:35:00\",\n        \"2013-03-26 14:25:00\",\n        \"2013-03-28 14:07:27\"\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/congestion-taxes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "congestion-taxes"
+                  ]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"code\": \"SERVICE_UNAVAILABLE\",\n    \"message\": \"The service is not ready.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Queries",
+      "description": "The read operations, rendered in `docs/QUERIES.md`. They change nothing on the service.",
+      "item": [
+        {
+          "name": "Find tax rules by city",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finds the tax rules of Gothenburg', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const rules = pm.response.json();",
+                  "    pm.expect(rules.city).to.eql('gothenburg');",
+                  "    pm.expect(rules.currency).to.eql('SEK');",
+                  "    pm.expect(rules.periods).to.have.lengthOf(1);",
+                  "    pm.expect(rules.periods[0].tariff_bands).to.have.lengthOf(9);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tax-rules/:city",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tax-rules",
+                ":city"
+              ],
+              "variable": [
+                {
+                  "key": "city",
+                  "value": "gothenburg",
+                  "description": "City whose tax rules are found, matched without regard to case or surrounding spaces."
+                }
+              ]
+            },
+            "description": "Finds the tax rules a city keeps, as the editors of the city maintain them: the currency and every tax period, each with its tariff bands, toll free calendar, daily maximum, single charge window, and exempt vehicles. A city with no tax rules answers `404`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/tax-rules/:city",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tax-rules",
+                    ":city"
+                  ],
+                  "variable": [
+                    {
+                      "key": "city",
+                      "value": "gothenburg",
+                      "description": "City whose tax rules are found, matched without regard to case or surrounding spaces."
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"city\": \"gothenburg\",\n    \"periods\": [\n        {\n            \"starts_on\": \"2013-01-01\",\n            \"ends_on\": \"2013-12-31\",\n            \"tariff_bands\": [\n                {\n                    \"amount\": 8,\n                    \"starts_at\": \"06:00:00\",\n                    \"ends_at\": \"06:30:00\"\n                },\n                {\n                    \"amount\": 13,\n                    \"starts_at\": \"06:30:00\",\n                    \"ends_at\": \"07:00:00\"\n                },\n                {\n                    \"amount\": 18,\n                    \"starts_at\": \"07:00:00\",\n                    \"ends_at\": \"08:00:00\"\n                },\n                {\n                    \"amount\": 13,\n                    \"starts_at\": \"08:00:00\",\n                    \"ends_at\": \"08:30:00\"\n                },\n                {\n                    \"amount\": 8,\n                    \"starts_at\": \"08:30:00\",\n                    \"ends_at\": \"15:00:00\"\n                },\n                {\n                    \"amount\": 13,\n                    \"starts_at\": \"15:00:00\",\n                    \"ends_at\": \"15:30:00\"\n                },\n                {\n                    \"amount\": 18,\n                    \"starts_at\": \"15:30:00\",\n                    \"ends_at\": \"17:00:00\"\n                },\n                {\n                    \"amount\": 13,\n                    \"starts_at\": \"17:00:00\",\n                    \"ends_at\": \"18:00:00\"\n                },\n                {\n                    \"amount\": 8,\n                    \"starts_at\": \"18:00:00\",\n                    \"ends_at\": \"18:30:00\"\n                }\n            ],\n            \"exempt_vehicles\": [\n                \"BUS\",\n                \"DIPLOMAT\",\n                \"EMERGENCY\",\n                \"FOREIGN\",\n                \"MILITARY\",\n                \"MOTORCYCLE\"\n            ],\n            \"public_holidays\": [\n                \"2013-01-01\",\n                \"2013-01-06\",\n                \"2013-03-29\",\n                \"2013-03-31\",\n                \"2013-04-01\",\n                \"2013-05-01\",\n                \"2013-05-09\",\n                \"2013-05-19\",\n                \"2013-06-06\",\n                \"2013-06-22\",\n                \"2013-11-02\",\n                \"2013-12-25\",\n                \"2013-12-26\",\n                \"2014-01-01\"\n            ],\n            \"toll_free_months\": [\n                7\n            ],\n            \"toll_free_weekdays\": [\n                6,\n                7\n            ],\n            \"daily_maximum_amount\": 60,\n            \"single_charge_window_minutes\": 60,\n            \"toll_free_day_before_holiday\": true\n        }\n    ],\n    \"currency\": \"SEK\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/tax-rules/:city",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tax-rules",
+                    ":city"
+                  ],
+                  "variable": [
+                    {
+                      "key": "city",
+                      "value": "stockholm",
+                      "description": "City whose tax rules are found, matched without regard to case or surrounding spaces."
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"code\": \"TAX_RULES_NOT_FOUND\",\n    \"message\": \"No tax rules found for the city.\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://congestion-tax.localhost:8380",
+      "type": "string"
+    }
+  ]
+}

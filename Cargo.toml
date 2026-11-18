@@ -1,0 +1,71 @@
+[package]
+name = "congestion-tax"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.100"
+publish = false
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "congestion-tax"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+jiff = { version = "1.0.0", default-features = false, features = ["std"] }
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["json", "postgres", "runtime-tokio"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["ansi", "fmt", "std"] }
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+rstest = { version = "0.28.0", default-features = false }
+serde_json = "1.0.154"
+tower = { version = "0.5.3", default-features = false, features = ["util"] }
+
+[[test]]
+name = "tests"
+path = "tests/main.rs"
+
+[lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+unsafe_code = "forbid"
+unused_qualifications = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Doc comments live on port traits only, so a public fallible constructor carries no `# Errors` section.
+missing_errors_doc = "allow"
+# Nursery lints taken one by one, because the group as a whole still carries false positives.
+cognitive_complexity = "warn"
+option_if_let_else = "warn"
+or_fun_call = "warn"
+# Restriction lints that turn the code style rules into checks: no panic paths, debug output, or silenced lint in
+# production code (clippy.toml lifts the panic family for tests), no inline absolute paths, no mod.rs files, and
+# bounded nesting.
+absolute_paths = "warn"
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+dbg_macro = "warn"
+excessive_nesting = "warn"
+expect_used = "warn"
+mod_module_files = "warn"
+panic = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"
