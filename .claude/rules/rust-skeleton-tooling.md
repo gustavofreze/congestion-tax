@@ -131,10 +131,12 @@ explicit request. Each carries exactly one `## @<section>` tag, which is what pl
 recipes are the single source of truth for what each command runs.
 
 `tests` runs the suite once under `cargo llvm-cov` with `COVERAGE_FILTER`, writes the HTML report, fails below 100
-percent of lines with `cargo llvm-cov report --fail-under-lines 100`, and then runs `cargo mutants --jobs 2` over the
-whole source. Each cargo-mutants job builds and tests its mutant in a copy of the tree, so two jobs share only the test
-database, and the integration fixtures seed with `ON CONFLICT DO NOTHING` so concurrent runs never break each other.
-Going back to one job to get around a shared state is prohibited: the fix is the isolation, never the parallelism.
+percent of lines with `cargo llvm-cov report --fail-under-lines 100`, and then runs
+`cargo mutants --jobs $(MUTANTS_JOBS)` over the whole source. `MUTANTS_JOBS` is 2 on a developer machine, and CI raises
+it to the 4 cores of its runner with `make tests MUTANTS_JOBS=4`. Each cargo-mutants job builds and tests its mutant in
+a copy of the tree, so the jobs share only the test database, and the integration fixtures seed with
+`ON CONFLICT DO NOTHING` so concurrent runs never break each other. Going back to one job to get around a shared state
+is prohibited: the fix is the isolation, never the parallelism.
 `test-file` runs `cargo test --locked -- $(FILE)` without coverage, after the same test database preparation.
 
 A helper target carries no `## @<section>` tag, which keeps it out of `make help`. A precondition is named

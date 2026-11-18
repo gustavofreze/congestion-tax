@@ -19,6 +19,7 @@ TEST_DATABASE := $(DATABASE_NAME)_test
 
 LLVM_COV_VERSION   := 0.9.1
 MUTANTS_VERSION    := 27.1.0
+MUTANTS_JOBS       := 2
 CARGO_SORT_VERSION := 2.1.4
 COVERAGE_FILTER    := --ignore-filename-regex "src/(main|app_settings|database_settings|environment_variable)\.rs"
 
@@ -89,7 +90,7 @@ tests: ensure-test-database ## @test Run all tests with coverage and mutation te
 		$(call ENSURE_CARGO_TOOL,mutants,cargo-mutants,$(MUTANTS_VERSION)) && \
 		cargo llvm-cov --locked $(COVERAGE_FILTER) --html --output-dir $(REPORT_DIR)/coverage && \
 		cargo llvm-cov report $(COVERAGE_FILTER) --summary-only --fail-under-lines 100 && \
-		cargo mutants --jobs 2 --cargo-arg=--locked --output $(REPORT_DIR)'
+		cargo mutants --jobs $(MUTANTS_JOBS) --cargo-arg=--locked --output $(REPORT_DIR)'
 
 .PHONY: test-file
 test-file: ensure-test-database ## @test Run a single test file without coverage (usage: make test-file FILE=tax_rules)
