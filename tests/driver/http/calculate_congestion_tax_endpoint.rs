@@ -15,11 +15,13 @@ use http_body_util::BodyExt;
 use rstest::rstest;
 use serde_json::{Value, json};
 use tower::ServiceExt;
+use tracing::instrument::WithSubscriber;
 
 use crate::support::builders::tax_rules_builder::TaxRulesBuilder;
 use crate::support::fixtures::database_fixtures::unreachable_database;
 use crate::support::spies::calculating_congestion_tax_spy::CalculatingCongestionTaxSpy;
 use crate::support::spies::dependency_probe_spy::DependencyProbeSpy;
+use crate::support::spies::log_spy::LogSpy;
 
 fn tax_of_89_kronor() -> CongestionTax {
     CongestionTax {
@@ -171,11 +173,15 @@ async fn calculate_when_tax_rules_are_unavailable_then_responds_that_the_service
         TaxRulesUnavailable::new("connection refused").into(),
     ));
 
+    // And a log listening to the service
+    let log = LogSpy::listening();
+
     // When a car is posted
     let (status, body) = post(
         r#"{"city": "gothenburg", "vehicle": "CAR", "passages": ["2013-02-07 06:23:27"]}"#,
         calculating_congestion_tax,
     )
+    .with_subscriber(log.subscriber())
     .await;
 
     // Then the response is service unavailable
@@ -186,6 +192,12 @@ async fn calculate_when_tax_rules_are_unavailable_then_responds_that_the_service
         body,
         json!({"code": "SERVICE_UNAVAILABLE", "message": "The service is not ready."})
     );
+
+    // And the log keeps the cause as an error
+    let logged = log.logged_text();
+    assert!(logged.contains("ERROR"));
+    assert!(logged.contains("The tax rules catalog is unavailable."));
+    assert!(logged.contains("connection refused"));
 }
 
 #[rstest]

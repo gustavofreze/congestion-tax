@@ -6,6 +6,7 @@ mod support {
     pub(crate) mod spies {
         pub(crate) mod calculating_congestion_tax_spy;
         pub(crate) mod dependency_probe_spy;
+        pub(crate) mod log_spy;
         pub(crate) mod monotonic_clock_spy;
         pub(crate) mod tax_rules_catalog_outcome;
         pub(crate) mod tax_rules_catalog_spy;

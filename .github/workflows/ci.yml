@@ -21,6 +21,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Restore cargo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: cargo-${{ github.job }}-${{ hashFiles('Cargo.lock', 'Makefile', 'rust-toolchain.toml') }}
+          path: |
+            .cargo-home
+            target
+          restore-keys: cargo-${{ github.job }}-
+
       - name: Install dependencies
         run: make configure
 
@@ -31,19 +40,27 @@ jobs:
     name: Test
     needs: lint
     runs-on: ubuntu-latest
-    # The tests run the whole suite under cargo llvm-cov and then cargo mutants, which takes about 15 minutes.
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Restore cargo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: cargo-${{ github.job }}-${{ hashFiles('Cargo.lock', 'Makefile', 'rust-toolchain.toml') }}
+          path: |
+            .cargo-home
+            target
+          restore-keys: cargo-${{ github.job }}-
+
       - name: Install dependencies
         run: make configure
 
       - name: Run tests
-        run: make tests
+        run: make tests MUTANTS_JOBS=4
 
   build:
     name: Build
