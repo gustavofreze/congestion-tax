@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Congestion Tax API
+  version: 1.0.0
+  description: >-
+    Calculates the congestion tax a vehicle owes for the passages it made through the tolling stations of a city. Each
+    city keeps its own tax rules as content, organized in tax periods, and every day of the passages follows the rules
+    of the period in force on that day. The tax is answered per day and in total, in whole units of the currency of the
+    city.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /
+    description: Relative to the host the service is published on.
+security: []
+tags:
+  - name: Congestion taxes
+    description: Calculates the congestion tax a vehicle owes for its passages through the tolling stations of a city.
+  - name: Tax rules
+    description: Finds the tax rules each city keeps as content.
+  - name: Health
+    description: Reports whether the process is alive and whether its critical dependencies are reachable.
+paths:
+  /congestion-taxes:
+    post:
+      operationId: congestionTaxCalculating
+      tags:
+        - Congestion taxes
+      summary: Congestion tax calculating
+      description: >-
+        Calculates the tax a vehicle owes, per day and in total, for its passages through the tolling stations of a
+        city. The passages are grouped by local day, and each day follows the tax period of the city in force on it.
+        On a charged day, the first charged passage opens a single charge window that covers every charged passage up
+        to 60 minutes after it, inclusive, and charges the highest fee among them. A free passage never opens a window.
+        Each day is capped at the daily maximum of its period, and exempt vehicles, weekends, public holidays, the days
+        before them, and July owe nothing in Gothenburg.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CongestionTaxCalculatingRequest'
+      responses:
+        '200':
+          description: Indicates that the tax was calculated for every day of the passages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CongestionTax'
+        '404':
+          description: Indicates that the city has no tax rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: TAX_RULES_NOT_FOUND
+                message: No tax rules found for the city.
+        '405':
+          description: Indicates that the path exists but does not accept the request method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: METHOD_NOT_ALLOWED
+                message: Method Not Allowed.
+        '422':
+          description: Indicates that one or more of the provided values are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidRequest:
+                  value:
+                    code: INVALID_REQUEST
+                    message: >-
+                      Failed to deserialize the JSON body into the target type: missing field `city` at line 1
+                      column 31
+                cityCannotBeEmpty:
+                  value:
+                    code: CITY_CANNOT_BE_EMPTY
+                    message: A city cannot be empty.
+                unsupportedVehicleType:
+                  value:
+                    code: UNSUPPORTED_VEHICLE_TYPE
+                    message: Vehicle type <TRUCK> is not supported.
+                passageFormatNotValid:
+                  value:
+                    code: PASSAGE_FORMAT_NOT_VALID
+                    message: >-
+                      Passage <2013-02-30 07:00:00> is not a local date and time in the YYYY-MM-DD HH:MM:SS
+                      format.
+                passageOutsideTaxPeriods:
+                  value:
+                    code: PASSAGE_OUTSIDE_TAX_PERIODS
+                    message: No tax period of the city covers the passages of <2014-02-04>.
+        '503':
+          description: Indicates that the service is not ready to handle requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: SERVICE_UNAVAILABLE
+                message: The service is not ready.
+  /tax-rules/{city}:
+    get:
+      operationId: findTaxRulesByCity
+      tags:
+        - Tax rules
+      summary: Find tax rules by city
+      description: >-
+        Finds the tax rules a city keeps, as the editors of the city maintain them. The rules hold the currency of the
+        city and every tax period, in the order the periods start, each with its tariff bands in the order of the day,
+        its toll free calendar, its daily maximum, its single charge window, and its exempt vehicles. Weekdays are ISO
+        8601 day numbers, 1 being Monday, and months run from 1 to 12.
+      parameters:
+        - name: city
+          in: path
+          required: true
+          description: City whose tax rules are found, matched without regard to case or surrounding spaces.
+          schema:
+            type: string
+            example: gothenburg
+      responses:
+        '200':
+          description: Indicates that the city keeps tax rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CityTaxRules'
+        '404':
+          description: Indicates that the city has no tax rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: TAX_RULES_NOT_FOUND
+                message: No tax rules found for the city.
+        '405':
+          description: Indicates that the path exists but does not accept the request method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: METHOD_NOT_ALLOWED
+                message: Method Not Allowed.
+        '503':
+          description: Indicates that the service is not ready to handle requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: SERVICE_UNAVAILABLE
+                message: The service is not ready.
+  /health/liveness:
+    get:
+      operationId: livenessCheck
+      tags:
+        - Health
+      summary: Liveness check
+      description: Reports that the process is running and able to answer requests.
+      responses:
+        '200':
+          description: Indicates that the process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessStatus'
+        '405':
+          description: Indicates that the path exists but does not accept the request method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: METHOD_NOT_ALLOWED
+                message: Method Not Allowed.
+  /health/readiness:
+    get:
+      operationId: readinessCheck
+      tags:
+        - Health
+      summary: Readiness check
+      description: >-
+        Reports that every critical dependency of the service is reachable. The probe runs one critical check against
+        the database and answers a diagnostic body instead of the standard error envelope.
+      responses:
+        '200':
+          description: Indicates that the service is ready to handle requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessReport'
+        '405':
+          description: Indicates that the path exists but does not accept the request method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: METHOD_NOT_ALLOWED
+                message: Method Not Allowed.
+        '503':
+          description: >-
+            Indicates that a critical dependency is down, so the service cannot handle requests. The failing entry
+            carries a detail describing the failure, and the aggregate status reports UNAVAILABLE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessReport'
+              example:
+                checks:
+                  - detail: pool timed out while waiting for an open connection
+                    status: DOWN
+                    critical: true
+                    component: database
+                    duration_in_milliseconds: 3001.37
+                status: UNAVAILABLE
+components:
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code in screaming snake case.
+          example: TAX_RULES_NOT_FOUND
+        message:
+          type: string
+          description: Human readable description of the failure.
+          example: No tax rules found for the city.
+    CongestionTaxCalculatingRequest:
+      type: object
+      required:
+        - city
+        - vehicle
+        - passages
+      properties:
+        city:
+          type: string
+          minLength: 1
+          pattern: '\S'
+          description: City whose tax rules apply, matched without regard to case or surrounding spaces.
+          example: gothenburg
+        vehicle:
+          type: string
+          enum:
+            - BUS
+            - CAR
+            - DIPLOMAT
+            - EMERGENCY
+            - FOREIGN
+            - MILITARY
+            - MOTORCYCLE
+          description: Type of the vehicle that made the passages.
+          example: CAR
+        passages:
+          type: array
+          description: Local dates and times of the city at which the vehicle passed a tolling station, in any order.
+          items:
+            type: string
+            description: Local date and time in the YYYY-MM-DD HH:MM:SS format, with no offset.
+          example:
+            - '2013-02-07 06:23:27'
+            - '2013-02-07 15:27:00'
+    DailyCongestionTax:
+      type: object
+      required:
+        - date
+        - amount
+      properties:
+        date:
+          type: string
+          format: date
+          description: Local date of the passages.
+          example: '2013-02-07'
+        amount:
+          type: integer
+          minimum: 0
+          description: >-
+            Tax of the day, after the single charge rule and the daily maximum, in whole units of the currency.
+          example: 21
+    CongestionTax:
+      type: object
+      required:
+        - days
+        - amount
+        - currency
+      properties:
+        days:
+          type: array
+          description: Tax of each day of the passages, in chronological order, toll free days included at zero.
+          items:
+            $ref: '#/components/schemas/DailyCongestionTax'
+          example:
+            - date: '2013-02-07'
+              amount: 21
+        amount:
+          type: integer
+          minimum: 0
+          description: Total tax across every day, in whole units of the currency.
+          example: 21
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 code of the currency of the city.
+          example: SEK
+    CityTariffBand:
+      type: object
+      required:
+        - amount
+        - starts_at
+        - ends_at
+      properties:
+        amount:
+          type: integer
+          minimum: 0
+          description: Fee a passage costs inside the band, in whole units of the currency.
+          example: 8
+        starts_at:
+          type: string
+          pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'
+          description: Local time of the day at which the band starts, included.
+          example: '06:00:00'
+        ends_at:
+          type: string
+          pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'
+          description: Local time of the day at which the band ends, excluded.
+          example: '06:30:00'
+    CityTaxPeriod:
+      type: object
+      required:
+        - starts_on
+        - ends_on
+        - tariff_bands
+        - exempt_vehicles
+        - public_holidays
+        - toll_free_months
+        - toll_free_weekdays
+        - daily_maximum_amount
+        - single_charge_window_minutes
+        - toll_free_day_before_holiday
+      properties:
+        starts_on:
+          type: string
+          format: date
+          description: Local date on which the period starts, included.
+          example: '2013-01-01'
+        ends_on:
+          type: string
+          format: date
+          description: Local date on which the period ends, included.
+          example: '2013-12-31'
+        tariff_bands:
+          type: array
+          description: Fees of the period, in the order of the day.
+          items:
+            $ref: '#/components/schemas/CityTariffBand'
+        exempt_vehicles:
+          type: array
+          description: Types of the vehicles that owe nothing during the period, in alphabetical order.
+          items:
+            type: string
+            enum:
+              - BUS
+              - CAR
+              - DIPLOMAT
+              - EMERGENCY
+              - FOREIGN
+              - MILITARY
+              - MOTORCYCLE
+          example:
+            - BUS
+            - EMERGENCY
+        public_holidays:
+          type: array
+          description: Public holidays on which no passage is charged, in calendar order.
+          items:
+            type: string
+            format: date
+          example:
+            - '2013-01-01'
+            - '2013-03-29'
+        toll_free_months:
+          type: array
+          description: Months, from 1 to 12, in which no passage is charged.
+          items:
+            type: integer
+            minimum: 1
+            maximum: 12
+          example:
+            - 7
+        toll_free_weekdays:
+          type: array
+          description: ISO 8601 day numbers, 1 being Monday, on which no passage is charged.
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+          example:
+            - 6
+            - 7
+        daily_maximum_amount:
+          type: integer
+          minimum: 0
+          description: Most a vehicle pays in one day, in whole units of the currency.
+          example: 60
+        single_charge_window_minutes:
+          type: integer
+          minimum: 0
+          description: Minutes after the first charged passage during which only the highest fee is charged.
+          example: 60
+        toll_free_day_before_holiday:
+          type: boolean
+          description: Whether the day before each public holiday is free of charge.
+          example: true
+    CityTaxRules:
+      type: object
+      required:
+        - city
+        - periods
+        - currency
+      properties:
+        city:
+          type: string
+          description: City the tax rules apply to, in lowercase.
+          example: gothenburg
+        periods:
+          type: array
+          description: Tax periods of the city, in the order they start.
+          items:
+            $ref: '#/components/schemas/CityTaxPeriod'
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 code of the currency every amount of the city is charged in.
+          example: SEK
+    LivenessStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - UP
+          description: Result of the liveness probe.
+          example: UP
+    DependencyHealth:
+      type: object
+      required:
+        - status
+        - critical
+        - component
+        - duration_in_milliseconds
+      properties:
+        detail:
+          type: string
+          description: Description of the failure, present only when the dependency reports DOWN.
+          example: pool timed out while waiting for an open connection
+        status:
+          type: string
+          enum:
+            - UP
+            - DOWN
+          description: Outcome of the check for this dependency.
+          example: UP
+        critical:
+          type: boolean
+          description: Whether a failure of this dependency makes the service unavailable.
+          example: true
+        component:
+          type: string
+          description: Component the check probes.
+          example: database
+        duration_in_milliseconds:
+          type: number
+          format: double
+          description: Time the check took to run, in milliseconds.
+          example: 4.59
+    ReadinessReport:
+      type: object
+      required:
+        - checks
+        - status
+      properties:
+        checks:
+          type: array
+          description: Outcome of each registered dependency check.
+          items:
+            $ref: '#/components/schemas/DependencyHealth'
+          example:
+            - status: UP
+              critical: true
+              component: database
+              duration_in_milliseconds: 4.59
+        status:
+          type: string
+          enum:
+            - HEALTHY
+            - UNAVAILABLE
+          description: Aggregate readiness derived from the registered checks.
+          example: HEALTHY
